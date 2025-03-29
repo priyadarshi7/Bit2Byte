@@ -11,34 +11,45 @@ const MeetingRoomDetail = () => {
   const { getAccessToken, user, appUser } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchMeetingRoom = async () => {
-      try {
-        const token = await getAccessToken();
-        const response = await api.get(`/meeting-rooms/${roomId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-        setRoom(response.data);
-      } catch (err) {
-        setError(err.response?.data?.message || 'Failed to fetch meeting room details');
-        console.error('Error fetching meeting room:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // Add this to your MeetingRoomDetail component's useEffect
+useEffect(() => {
+  const fetchMeetingRoom = async () => {
+    try {
+      console.log("AppUser:", appUser); // Log the appUser object
+      
+      const token = await getAccessToken();
+      console.log("Token obtained"); // Confirm token was obtained
+      
+      // Make the request
+      const response = await api.get(`/meeting-rooms/${roomId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      console.log("Room data received:", response.data);
+      setRoom(response.data);
+    } catch (err) {
+      console.error("Full error details:", err);
+      setError(err.response?.data?.message || 'Failed to fetch meeting room details');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  if (appUser) {
     fetchMeetingRoom();
-  }, [roomId, getAccessToken]);
+  }
+}, [roomId, getAccessToken, appUser]);
 
   const getUserRole = () => {
-    if (!room || !user) return null;
+    if (!room || !appUser) return null;
     
+    // Find the participant that matches the current user
     const participant = room.participants.find(
-      p => p.appUser.auth0Id === user.sub || p.appUser.auth0id === user._id
+      p => p.user._id === appUser._id
     );
-    return participant?.role || 'employee';
+    
+    return participant?.role || null;
   };
 
   const handleEndMeeting = async () => {
@@ -53,7 +64,8 @@ const MeetingRoomDetail = () => {
       // Update local state
       setRoom(prevRoom => ({
         ...prevRoom,
-        isActive: false
+        isActive: false,
+        endTime: new Date()
       }));
     } catch (err) {
       console.error('Error ending meeting:', err);
@@ -123,7 +135,7 @@ const MeetingRoomDetail = () => {
           <div className="mb-8">
             <p className="text-lg text-gray-700 mb-2">{room.description || 'No description provided'}</p>
             
-<div className="flex items-center text-sm text-gray-600">
+            <div className="flex items-center text-sm text-gray-600">
               <div className="mr-6">
                 <span className="font-medium">Meeting Code:</span> {room.meetingCode}
               </div>

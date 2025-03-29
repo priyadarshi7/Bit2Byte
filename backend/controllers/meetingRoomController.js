@@ -102,19 +102,23 @@ const joinMeetingRoom = async (req, res) => {
 const getMeetingRoom = async (req, res) => {
   try {
     const { roomId } = req.params;
-    const userId = req.user.id; // From auth middleware
+    const userId = req.user.auth0Id; // This is likely the auth0Id
     
     const meetingRoom = await MeetingRoom.findById(roomId)
-      .populate('creator', 'name email picture')
-      .populate('participants.user', 'name email picture');
+      .populate('creator', 'name email picture auth0Id') // Add auth0Id to populated fields
+      .populate('participants.user', 'name email picture auth0Id'); // Add auth0Id to populated fields
     
     if (!meetingRoom) {
       return res.status(404).json({ message: 'Meeting room not found' });
     }
     
-    // Check if user is participant
+    // Log for debugging
+    console.log("User from token:", userId);
+    console.log("First participant:", meetingRoom.participants[0].user);
+    
+    // Check if user is participant by auth0Id
     const isParticipant = meetingRoom.participants.some(
-      participant => participant.user._id.toString() === userId
+      participant => participant.user.auth0Id === userId
     );
     
     if (!isParticipant) {
@@ -137,8 +141,8 @@ const getUserMeetingRooms = async (req, res) => {
     const meetingRooms = await MeetingRoom.find({
       'participants.user': userId
     })
-      .populate('creator', 'name email picture')
-      .populate('participants.user', 'name email picture')
+      .populate('creator', 'name email picture auth0Id')
+      .populate('participants.user', 'name email picture auth0Id')
       .sort({ createdAt: -1 });
     
     return res.status(200).json(meetingRooms);

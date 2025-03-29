@@ -1,34 +1,18 @@
-// models/User.js
 const mongoose = require('mongoose');
 
 const UserSchema = new mongoose.Schema({
-  auth0Id: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  name: {
-    type: String,
-    required: true
-  },
-  picture: {
-    type: String
-  },
-  lastLogin: {
-    type: Date,
-    default: Date.now
-  },
-  metadata: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {}
-  }
-}, {
-  timestamps: true
+  auth0Id: { type: String, required: true },
+  name: { type: String },
+  email: { type: String, unique: true },
+  nickname: { type: String },
+  picture: { type: String },
+  avatarId: { type: String },
+  spaces: [{
+    spaceId: String,
+    role: { type: String, enum: ['leader', 'member'] },
+    points: { type: Number, default: 0 }
+  }],
+  createdAt: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model('User', UserSchema);
+module.exports = mongoose.models?.User || mongoose.model('User', UserSchema);

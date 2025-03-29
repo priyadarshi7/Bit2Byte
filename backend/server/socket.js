@@ -1,109 +1,131 @@
+// server/socket.js
 const socketIO = require('socket.io');
-const jwt = require('jsonwebtoken');
-const User = require('../models/user');
+const { v4: uuidv4 } = require('uuid');
 
 module.exports = function(server) {
   const io = socketIO(server, {
     cors: {
-      origin: 'http://localhost:5173',
-      methods: ['GET', 'POST'],
+      origin: "http://localhost:5173",
+      methods: ["GET", "POST"],
       credentials: true
     }
   });
-
-  // Socket.io middleware for authentication
-  io.use(async (socket, next) => {
-    try {
-      const token = socket.handshake.auth.token;
+  
+  // Track active rooms and users
+  const rooms = {};
+  
+  io.on('connection', (socket) => {
+    console.log('New user connected:', socket.id);
+    
+    // Join room
+    socket.on('join-room', ({ roomId, userId, userName, userPicture }) => {
+      console.log(`User ${userName} (${userId}) joined room ${roomId}`);
       
-      if (!token) {
-        return next(new Error('Authentication error: Token required'));
+      // Initialize room if it doesn't exist
+      if (!rooms[roomId]) {
+        rooms[roomId] = {
+          users: {},
+          messages: []
+        };
       }
       
-      // Verify the JWT token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      
-      // Find user by Auth0 ID
-      const user = await User.findOne({ auth0Id: decoded.sub });
-      
-      if (!user) {
-        return next(new Error('Authentication error: User not found'));
-      }
-      
-      // Attach user to socket
-      socket.user = {
-        id: user._id,
-        auth0Id: user.auth0Id,
-        name: user.name,
-        email: user.email
+      // Add user to room
+      rooms[roomId].users[socket.id] = {
+        socketId: socket.id,
+        userId,
+        userName,
+        userPicture
       };
       
-      next();
-    } catch (error) {
-      console.error('Socket authentication error:', error);
-      next(new Error('Authentication error'));
-    }
-  });
-
-  // Connection handler
-  io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.user.name} (${socket.id})`);
-    
-    // Join a meeting room
-    socket.on('join-room', (roomId) => {
+      // Join the room
       socket.join(roomId);
       
       // Notify others in the room
-      socket.to(roomId).emit('user-joined', {
-        userId: socket.user.id,
-        name: socket.user.name,
-        timestamp: new Date()
+      socket.to(roomId).emit('user-connected', {
+        socketId: socket.id,
+        userId,
+        userName,
+        userPicture
       });
       
-      console.log(`${socket.user.name} joined room: ${roomId}`);
+      // Send current users in the room to the joining user
+      socket.emit('room-users', Object.values(rooms[roomId].users));
+      
+      // Send existing messages to the joining user
+      socket.emit('chat-history', rooms[roomId].messages);
     });
     
-    // Leave a meeting room
-    socket.on('leave-room', (roomId) => {
-      socket.leave(roomId);
-      
-      // Notify others in the room
-      socket.to(roomId).emit('user-left', {
-        userId: socket.user.id,
-        name: socket.user.name,
-        timestamp: new Date()
-      });
-      
-      console.log(`${socket.user.name} left room: ${roomId}`);
+    // Handle WebRTC signaling
+    socket.on('signal', ({ to, from, signal }) => {
+      io.to(to).emit('signal', { from, signal });
     });
     
-    // Send a message in a room
-    socket.on('send-message', (data) => {
-      const { roomId, message } = data;
-      
-      // Broadcast message to everyone in the room including sender
-      io.to(roomId).emit('new-message', {
-        userId: socket.user.id,
-        name: socket.user.name,
-        message,
-        timestamp: new Date()
-      });
+    // Handle chat messages
+    socket.on('send-message', ({ roomId, message }) => {
+      // Store the message
+      if (rooms[roomId]) {
+        rooms[roomId].messages.push(message);
+        // Limit message history to prevent memory issues
+        if (rooms[roomId].messages.length > 100) {
+          rooms[roomId].messages.shift();
+        }
+        
+        // Broadcast to everyone in the room
+        io.in(roomId).emit('new-message', message);
+      }
     });
     
-    // End meeting (boss only)
-    socket.on('end-meeting', (roomId) => {
-      // Notify all users in the room
-      io.to(roomId).emit('meeting-ended', {
-        endedBy: socket.user.name,
-        timestamp: new Date()
+    // Handle screen sharing status
+    socket.on('screen-share-status', ({ roomId, isSharing }) => {
+      socket.to(roomId).emit('user-screen-share', {
+        socketId: socket.id,
+        isSharing
       });
     });
     
-    // Disconnect handler
+    // Handle disconnection
     socket.on('disconnect', () => {
-      console.log(`User disconnected: ${socket.user.name} (${socket.id})`);
+      console.log('User disconnected:', socket.id);
+      
+      // Find the room this user was in
+      for (const roomId in rooms) {
+        if (rooms[roomId].users[socket.id]) {
+          // Remove the user from the room
+          const userData = rooms[roomId].users[socket.id];
+          delete rooms[roomId].users[socket.id];
+          
+          // Notify others in the room
+          socket.to(roomId).emit('user-disconnected', socket.id);
+          
+          // If room is empty, clean it up
+          if (Object.keys(rooms[roomId].users).length === 0) {
+            delete rooms[roomId];
+          }
+          
+          break;
+        }
+      }
+    });
+    
+    // Handle leaving room explicitly
+    socket.on('leave-room', ({ roomId }) => {
+      if (rooms[roomId] && rooms[roomId].users[socket.id]) {
+        // Remove the user from the room
+        delete rooms[roomId].users[socket.id];
+        
+        // Notify others in the room
+        socket.to(roomId).emit('user-disconnected', socket.id);
+        
+        // Leave the room
+        socket.leave(roomId);
+        
+        // If room is empty, clean it up
+        if (Object.keys(rooms[roomId].users).length === 0) {
+          delete rooms[roomId];
+        }
+      }
     });
   });
-
+  
   return io;
 };

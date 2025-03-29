@@ -1,67 +1,40 @@
+// App.jsx
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './context/AuthContext';
-import Navbar from './components/Navbar/Navbar';
-import Dashboard from './components/MeetingRoom/Dashboard';
-import CreateMeetingRoom from './components/MeetingRoom/CreateMeetingRoom';
-import JoinMeetingRoom from './components/MeetingRoom/JoinMeetingRoom';
-import MeetingRoomDetail from './components/MeetingRoom/MeetingRoomDetail';
-import Login from './components/Auth/Login';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { useAuth0 } from '@auth0/auth0-react';
+import Dashboard from './components/Dashboard';
+import CreateRoom from './components/CreateRoom';
+import JoinRoom from './components/JoinRoom';
+import Room from './components/Room';
+import Navbar from './components/Navbar';
+import VideoRoom from './components/VideoRoom';
 
-// Protected route component
-const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
-  
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-  
-  return isAuthenticated ? children : <Navigate to="/login" />;
-};
+// Simple components for auth states
+const Loading = () => (
+  <div className="flex justify-center items-center h-screen">
+    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+  </div>
+);
 
 const App = () => {
+  const { isLoading } = useAuth0();
+
+  if (isLoading) {
+    return <Loading />;
+  }
+
   return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-100">
         <Navbar />
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          
-          <Route path="/" element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/dashboard" element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/create-meeting" element={
-            <ProtectedRoute>
-              <CreateMeetingRoom />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/join-meeting" element={
-            <ProtectedRoute>
-              <JoinMeetingRoom />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/meeting-room/:roomId" element={
-            <ProtectedRoute>
-              <MeetingRoomDetail />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="*" element={<Navigate to="/dashboard" />} />
-        </Routes>
+        <div className="container mx-auto py-8">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/create-room" element={<CreateRoom />} />
+            <Route path="/join-room" element={<JoinRoom />} />
+            <Route path="/room/:id" element={<Room />} />
+            <Route path="/video" element={<VideoRoom/>} />
+          </Routes>
+        </div>
       </div>
   );
 };

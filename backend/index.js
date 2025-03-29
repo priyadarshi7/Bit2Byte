@@ -6,6 +6,7 @@ const cors = require('cors');
 const userRoutes = require('./routes/user');
 const meetingRoomRoutes = require('./routes/meetingRoomRoutes');
 const socketInit = require('./server/socket');
+const spaceRoutes = require("./routes/spaceRoutes");
 
 const app = express();
 const server = http.createServer(app);
@@ -30,6 +31,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/users', userRoutes);
 app.use('/api/meeting-rooms', meetingRoomRoutes);
+app.use('/api/spaces', spaceRoutes);
 
 // Health check route
 app.get('/health', (req, res) => {
