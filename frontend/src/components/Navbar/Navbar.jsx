@@ -1,12 +1,32 @@
-import React, { useContext, useState } from 'react';
-import ThemeContext from '../../contexts/ThemeContext'
+import React, { useContext, useState, useEffect } from 'react';
+import ThemeContext from '../../context/ThemeContext';
 import { useAuth0 } from '@auth0/auth0-react';
+import { syncUserWithBackend } from '../../services/userService';
 
 function Navbar() {
   const { darkMode, toggleTheme } = useContext(ThemeContext);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [backendUser, setBackendUser] = useState(null);
 
-  const {user, isAuthenticated, loginWithRedirect} = useAuth0();
+  const { user, isAuthenticated, loginWithRedirect, isLoading } = useAuth0();
+
+  // Sync user with backend whenever auth status changes
+  useEffect(() => {
+    const syncUser = async () => {
+      if (isAuthenticated && user && !isLoading) {
+        try {
+          // Sync user with backend
+          const syncedUser = await syncUserWithBackend(user);
+          setBackendUser(syncedUser);
+          console.log('User synced with backend:', syncedUser);
+        } catch (error) {
+          console.error('Error syncing user with backend:', error);
+        }
+      }
+    };
+
+    syncUser();
+  }, [isAuthenticated, user, isLoading]);
 
   return (
     <nav className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 transition-colors duration-300">
@@ -52,16 +72,27 @@ function Navbar() {
               )}
             </button>
             <div className="hidden sm:ml-6 sm:flex sm:items-center">
-                {
-                    isAuthenticated?
-                //   <button className="ml-4 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-300">
-                //     Profile
-                //   </button> 
-                   <img src={user.picture} height="40px" width="40px"/>:
-                   <button onClick={loginWithRedirect} className="ml-4 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-300">
-                     SignIn
-                   </button>
-                }
+              {isLoading ? (
+                <div className="animate-pulse h-10 w-10 bg-gray-200 rounded-full"></div>
+              ) : isAuthenticated ? (
+                <div className="flex items-center">
+                  <img 
+                    src={user.picture} 
+                    alt={user.name}
+                    className="h-10 w-10 rounded-full"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-900 dark:text-white">
+                    {backendUser ? backendUser.name : user.name}
+                  </span>
+                </div>
+              ) : (
+                <button 
+                  onClick={loginWithRedirect} 
+                  className="ml-4 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-300"
+                >
+                  Sign In
+                </button>
+              )}
             </div>
             <div className="flex items-center sm:hidden">
               <button
@@ -98,9 +129,27 @@ function Navbar() {
         <div className="pt-4 pb-3 border-t border-gray-200 dark:border-gray-800">
           <div className="flex items-center px-4">
             <div className="flex-shrink-0">
-              <button className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-300">
-                Sign In
-              </button>
+              {isLoading ? (
+                <div className="animate-pulse h-10 w-24 bg-gray-200 rounded-md"></div>
+              ) : !isAuthenticated ? (
+                <button 
+                  onClick={loginWithRedirect}
+                  className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-300"
+                >
+                  Sign In
+                </button>
+              ) : (
+                <div className="flex items-center">
+                  <img 
+                    src={user.picture} 
+                    alt={user.name}
+                    className="h-10 w-10 rounded-full"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-900 dark:text-white">
+                    {backendUser ? backendUser.name : user.name}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -110,3 +159,64 @@ function Navbar() {
 }
 
 export default Navbar;
+
+// import React from 'react';
+// import { Link } from 'react-router-dom';
+// import { useAuth } from '../../context/AuthContext';
+
+// const Navbar = () => {
+//   const { isAuthenticated, user, loginWithRedirect, logout } = useAuth();
+
+//   return (
+//     <nav className="bg-white shadow-md">
+//       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+//         <div className="flex justify-between h-16">
+//           <div className="flex items-center">
+//             <Link to="/" className="text-xl font-bold text-blue-600">
+//               Meeting Rooms
+//             </Link>
+//           </div>
+          
+//           <div className="flex items-center">
+//             {isAuthenticated ? (
+//               <div className="flex items-center space-x-4">
+//                 <div className="flex items-center space-x-2">
+//                   {user?.picture ? (
+//                     <img 
+//                       src={user.picture} 
+//                       alt="Profile"
+//                       className="h-8 w-8 rounded-full" 
+//                     />
+//                   ) : (
+//                     <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
+//                       <span className="text-white font-medium">
+//                         {user?.name?.charAt(0) || 'U'}
+//                       </span>
+//                     </div>
+//                   )}
+//                   <span className="text-gray-700">{user?.name}</span>
+//                 </div>
+                
+//                 <button 
+//                   onClick={() => logout()}
+//                   className="text-gray-600 hover:text-gray-900"
+//                 >
+//                   Logout
+//                 </button>
+//               </div>
+//             ) : (
+//               <button 
+//                 onClick={() => loginWithRedirect()}
+//                 className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+//               >
+//                 Login
+//               </button>
+//             )}
+//           </div>
+//         </div>
+//       </div>
+//     </nav>
+//   );
+// };
+
+// export default Navbar;
